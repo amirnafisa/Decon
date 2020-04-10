@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+__author__ = 'nafisa'
+import rospy
+import json
+import sys
+import time
+from std_msgs.msg import String, Bool, Float32MultiArray
+
+class DeconController:
+	def __init__(self):
+		
+		self.led_command_topic = rospy.Publisher('led_msg', Bool, queue_size=1)
+		self.pump_command_topic = rospy.Publisher('pump_msg', Bool, queue_size=1)
+		self.detection_command_topic = rospy.Publisher('detect_msg', Bool, queue_size=1)
+		self.detection_status_topic = rospy.Subscriber('detect_status_msg', Float32MultiArray, self.detection_cb)
+		rospy.init_node('decon_controller', anonymous=True, disable_signals=True)
+
+		self.handshake = False		
+		self.rate = rospy.Rate(1) #Repeat detect and disinfect every 1 second
+		self.detection_response = None
+		self.detection_timeout = 30 #time in seconds (equal to 30 seconds)
+
+	def detect(self):
+		rospy.loginfo("[Decon] Starting detection process...")
+		self.detection_command_topic.publish(True)
+	
+	def detection_cb(self, data):
+		self.detection_response = data.data
+		if self.detection_response == (1,) and self.handshake == False:
+			self.handshake = True
+			self.detection_response = None
+			rospy.loginfo("[Decon] Detection handshake completed...")
+
+	def turn_led_on(self):
+		rospy.loginfo("[Decon] Turning led on...")
+		self.led_command_topic.publish(True)
+
+	def turn_led_off(self):
+		rospy.loginfo("[Decon] Turning led off...")
+		self.led_command_topic.publish(False)
+
+	def activating_pump(self):
+		rospy.loginfo("[Decon] Activating pump (It will turn off on its own after 30 seconds)...")
+		self.pump_command_topic.publish(True)
+	
+	def disinfect(self):
+		self.turn_led_on()
+		for remaining in range(5, 0, -1):
+    			sys.stdout.write("\r")
+    			sys.stdout.write("{:2d} seconds remaining.".format(remaining)) 
+    			sys.stdout.flush()
+    			time.sleep(1)
+
+		sys.stdout.write("\rComplete!            \n")
+		self.turn_led_off()
+		self.activating_pump()
+		for remaining in range(5, 0, -1):
+    			sys.stdout.write("\r")
+    			sys.stdout.write("{:2d} seconds remaining.".format(remaining)) 
+    			sys.stdout.flush()
+    			time.sleep(1)
+
+
+	def handshake_detection(self):
+		rospy.loginfo("[Decon] Initiating handshake...")
+		self.detection_command_topic.publish(False)
+
+	def start(self):
+		rospy.loginfo("[Decon] System Activated...")
+		while not rospy.is_shutdown():
+			timeout_start = time.time()
+			try:
+				while self.handshake is False and time.time() < timeout_start + 60:
+					self.handshake_detection()
+					self.rate.sleep()	
+			except KeyboardInterrupt:
+				rospy.loginfo("\n[Decon] Keyboard Interrupt received... GoodBye!")
+				break
+			if self.handshake is False:
+				rospy.loginfo("[Decon] Detection not working... Try again later!")
+				break
+			self.detect()
+
+			try:
+				timer = -1
+				while self.detection_response is None:
+					timer += 1
+					sys.stdout.write("\r")
+					sys.stdout.write("{:3d} seconds elapsed.".format(int(timer)))
+					sys.stdout.flush()
+					self.rate.sleep()
+			except KeyboardInterrupt:
+				rospy.loginfo("\n[Decon] Keyboard Interrupt received...Releasing detection unit!")
+			sys.stdout.write("\n")
+
+			if self.detection_response is not None:
+				if self.detection_response == (-1,):
+                                	rospy.loginfo("\r[Decon] Camera could not capture. Try replugging camera cable...")
+                                	self.handshake = False
+				
+				if len(self.detection_response) > 1:
+					rospy.loginfo("[Decon] %s, I heard %s" % (rospy.get_caller_id(), ', '.join([str(elem) for elem in self.detection_response])))	
+					self.disinfect()
+				self.detection_response = None
+			else:
+				self.handshake = False
+
+			self.rate.sleep()		
+				
+if __name__ == '__main__':
+	try:
+		dcontroller = DeconController()
+		dcontroller.start()
+	except rospy.ROSInterruptException:
+		log_string = "[Decon] Decon Controller exiting at %s!" % rospy.get_time()	
+		rospy.loginfo(log_string)
+

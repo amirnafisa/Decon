@@ -1,0 +1,199 @@
+#!/usr/bin/env python
+import sys
+import copy
+import rospy
+import moveit_commander
+import geometry_msgs.msg
+from std_msgs.msg import String
+
+def rotate_z_plus(group):
+	waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.orientation.z += scale
+        waypoints.append(copy.deepcopy(wpose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+	group.stop()
+
+	group.clear_pose_targets()
+
+
+def rotate_z_minus(group):
+	waypoints = []
+	scale = 0.1
+	wpose = group.get_current_pose().pose
+	wpose.orientation.z -= scale
+	waypoints.append(copy.deepcopy(wpose))
+
+	(plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+	group.execute(plan, wait=True)
+	
+	group.stop()
+
+        group.clear_pose_targets()
+
+
+
+def move_up(group):
+	waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.z += scale
+        waypoints.append(copy.deepcopy(wpose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+	group.stop()
+
+	group.clear_pose_targets()
+
+
+def move_down(group):
+	waypoints = []
+	scale = 0.1
+	wpose = group.get_current_pose().pose
+	wpose.position.z -= scale
+	waypoints.append(copy.deepcopy(wpose))
+
+	(plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+	group.execute(plan, wait=True)
+	
+	group.stop()
+
+        group.clear_pose_targets()
+
+def move_back(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.x -= scale
+        waypoints.append(copy.deepcopy(wpose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+def move_front(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.x += scale
+        waypoints.append(copy.deepcopy(wpose))
+        
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+
+def move_left(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.y -= scale
+        waypoints.append(copy.deepcopy(wpose))
+        
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+def move_right(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.y += scale
+        waypoints.append(copy.deepcopy(wpose))
+        
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+
+
+def move_to_pose(pose, group):
+	
+	waypoints = []
+        waypoints.append(copy.deepcopy(pose.pose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+
+def arm_controller():
+	moveit_commander.roscpp_initialize(sys.argv)
+#['robot_description:=wx200/robot_description', 'robot_name:=wx200','robot_model:=wx200','ns:=wx200','group_name:=interbotix_arm']
+        scene = moveit_commander.PlanningSceneInterface() #ns="wx200"
+        robot = moveit_commander.RobotCommander(robot_description="wx200/robot_description")
+        group_name = "interbotix_arm"
+        group = moveit_commander.MoveGroupCommander(robot_description="wx200/robot_description",ns =    "wx200",name = group_name)
+
+
+
+        pub = rospy.Publisher('chatter', String, queue_size=10)
+        rospy.init_node('decon_arm', anonymous=True, disable_signals=True)
+        rate = rospy.Rate(0.5) # 10hz
+	rateForMovement = rospy.Rate(0.1)
+
+
+        start_pose = group.get_current_pose()
+
+	print ("Starting position: ",start_pose)
+	try:
+		while True:
+			user_input = raw_input("Press w to move up, a to move left, d to move right, x to move down, q to move back, c to move front, u to rotate z plus, n to rotate z minus, b to exit: ")
+ 			if user_input == 'w':
+				move_up(group)
+			elif user_input == 'a':
+				move_left(group)
+			elif user_input == 'd':
+				move_right(group)
+			elif user_input == 'x':
+				move_down(group)
+			elif user_input == 'q':
+				move_back(group)
+			elif user_input == 'c':
+				move_front(group)
+			elif user_input == 'u':
+				rotate_z_plus(group)
+			elif user_input == 'n':
+				rotate_z_minus(group)
+			elif user_input == 'b':
+				move_to_pose(start_pose, group)
+				rateForMovement.sleep()
+				break
+			else:
+				print("Incorrect input")
+			rateForMovement.sleep()
+
+	except KeyboardInterrupt:
+		print group.get_current_pose()
+		print("Keyboard Interrupt Received. Going back to home position... GoodBye!")
+		move_to_pose(start_pose, group)
+		return
+if __name__ == '__main__':
+    try:
+        arm_controller()
+    except rospy.ROSInterruptException:
+        pass
+

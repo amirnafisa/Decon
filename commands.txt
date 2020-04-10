@@ -1,0 +1,9 @@
+###ARM
+roslaunch interbotix_moveit interbotix_moveit.launch robot_name:=wx200 dof:=5 use_actual:=true
+rosservice call /wx200/torque_joints_off
+rosservice call /wx200/torque_joints_on
+roslaunch interbotix_moveit decon_arm.launch
+rosrun turtlebot3_example dcontroller #Run on the host
+rosrun turtlebot3_bringup ddetection #Run on jetson
+
+
