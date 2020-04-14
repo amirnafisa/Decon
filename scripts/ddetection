@@ -3,7 +3,6 @@ import subprocess
 import rospy
 import time
 from std_msgs.msg import String, Bool, Float32MultiArray
-from camera import capture
 from detect import prepare_model, detect_image
 from sys import exit
 
@@ -26,11 +25,19 @@ class Decon_SBC_Controller:
 			bashCommand = "python2.7 /home/nvidia/deconbot/src/turtlebot3/turtlebot3_bringup/scripts/camera.py /home/nvidia/test.png"
 			process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
 			output, error = process.communicate()
-			if process.returncode == 255:
+			print("Output: ", output)
+			print("Error: ", error)
+			if process.returncode == 255 or error is not None:
 				response.data = [-1]	
 			else:
-				objects = detect_image("/home/nvidia/test.png",self.model,self.tr)
-				response.data = [elem for obj in objects for elem in obj]
+				# output=>[w,h,d,s,k] => w,h = size of image in pixels; d is the depth in meters, s,k = pixel to meter coef w.r.t horizontal and vertical axes (units for s, k are meter per pixel and varies with depth)
+				response.data = [float(el) for el in output.strip().split(' ')]
+				#Labels: 1:Human/Person, 2:Door Handle, 3:Light Switch
+				objects, labels = detect_image("/home/nvidia/test.png",self.model,self.tr)
+				for obj,label in zip(objects, labels):
+					response.data.append(label)
+					response.data.extend(obj)
+			
 				rospy.loginfo("[Decon] The predicted boxes are:" + ','.join([str(elem) for elem in response.data]))
 		self.detection_status_topic.publish(response)
 		
