@@ -4,6 +4,7 @@ import rospy
 import json
 import sys
 import time
+import math
 from std_msgs.msg import String, Bool, Float32MultiArray
 
 class DeconController:
@@ -100,7 +101,23 @@ class DeconController:
 				
 				if len(self.detection_response) > 1:
 					rospy.loginfo("[Decon] %s, I heard %s" % (rospy.get_caller_id(), ', '.join([str(elem) for elem in self.detection_response])))	
-					self.disinfect()
+					[w,h,d,s,k] = self.detection_response[:5]
+					objects = []
+					for idx in range(0, len(self.detection_response[5:]), 5):
+						#if self.detection_response[5+idx] == 1: #If the object is human
+						#	stopAllMovement/Emergency Kill Switch Operation 
+						if self.detection_response[5+idx] > 1: #If the object is door handle or light switch
+							obj_width_in_meters = self.detection_response[8+idx]*s
+							obj_height_in_meters = self.detection_response[9+idx]*k
+							obj_horizontal_offset_from_arm_ee = ((w/2) - self.detection_response[6+idx]) * s
+							obj_vertical_offset_from_arm_ee =  self.detection_response[7+idx]*k - d*math.tan(math.radians(30)) - 0.36 #Arm End Effector From Camera distance in sleep position is 0.36 m
+							
+							if obj_width_in_meters < 0.2 and obj_height_in_meters < 0.2: #Cross section of disinfecting cone is 0.25X0.25, hence the number 0.2
+								#move_robot_ahead(d-0.45)
+								#move_arm(obj_horizontal_offset_from_arm_ee, obj_vertical_offset_from_arm_ee)
+								self.disinfect()
+								#move_arm_home_pose()
+								
 				self.detection_response = None
 			else:
 				self.handshake = False
