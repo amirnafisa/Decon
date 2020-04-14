@@ -160,8 +160,8 @@ def arm_controller():
 
 	print ("Starting position: ",start_pose)
 	try:
-		while True:
-			user_input = raw_input("Press w to move up, a to move left, d to move right, x to move down, q to move back, c to move front, u to rotate z plus, n to rotate z minus, b to exit: ")
+		while not rospy.is_shutdown():
+			user_input = raw_input("Press w to move up, a to move left, d to move right, x to move down, q to move back, c to move front, u to rotate z plus, n to rotate z minus, h to go to start position, b to exit: ")
  			if user_input == 'w':
 				move_up(group)
 			elif user_input == 'a':
@@ -178,6 +178,8 @@ def arm_controller():
 				rotate_z_plus(group)
 			elif user_input == 'n':
 				rotate_z_minus(group)
+			elif user_input == 'h':
+				move_to_pose(start_pose, group)
 			elif user_input == 'b':
 				move_to_pose(start_pose, group)
 				rateForMovement.sleep()
@@ -196,4 +198,3 @@ if __name__ == '__main__':
         arm_controller()
     except rospy.ROSInterruptException:
         pass
-
