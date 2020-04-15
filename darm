@@ -1,0 +1,222 @@
+#!/usr/bin/env python
+# license removed for brevity
+__author__ = 'nafisa'
+import rospy
+import sys
+import copy
+import moveit_commander
+import geometry_msgs.msg
+from std_msgs.msg import String, Bool, Float32MultiArray
+
+
+def rotate_z_plus(group):
+	waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.orientation.z += scale
+        waypoints.append(copy.deepcopy(wpose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+	group.stop()
+
+	group.clear_pose_targets()
+
+
+def rotate_z_minus(group):
+	waypoints = []
+	scale = 0.1
+	wpose = group.get_current_pose().pose
+	wpose.orientation.z -= scale
+	waypoints.append(copy.deepcopy(wpose))
+
+	(plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+	group.execute(plan, wait=True)
+	
+	group.stop()
+
+        group.clear_pose_targets()
+
+
+
+def move_up(group):
+	waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.z += scale
+        waypoints.append(copy.deepcopy(wpose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+	group.stop()
+
+	group.clear_pose_targets()
+
+
+def move_down(group):
+	waypoints = []
+	scale = 0.1
+	wpose = group.get_current_pose().pose
+	wpose.position.z -= scale
+	waypoints.append(copy.deepcopy(wpose))
+
+	(plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+	group.execute(plan, wait=True)
+	
+	group.stop()
+
+        group.clear_pose_targets()
+
+def move_back(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.x -= scale
+        waypoints.append(copy.deepcopy(wpose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+def move_front(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.x += scale
+        waypoints.append(copy.deepcopy(wpose))
+        
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+
+def move_left(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.y -= scale
+        waypoints.append(copy.deepcopy(wpose))
+        
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+def move_right(group):
+
+        waypoints = []
+        scale = 0.1
+        wpose = group.get_current_pose().pose
+        wpose.position.y += scale
+        waypoints.append(copy.deepcopy(wpose))
+        
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+
+
+def move_to_pose(pose, group):
+	
+	waypoints = []
+        waypoints.append(copy.deepcopy(pose.pose))
+
+        (plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
+        group.execute(plan, wait=True)
+
+        group.stop()
+
+        group.clear_pose_targets()
+
+
+class DeconArm():
+	def __init__(self):
+		self.arm_topic = rospy.Subscriber('arm_msg', Float32MultiArray, self.arm_cb)	
+		self.arm_status_topic = rospy.Publisher('arm_status_msg', Bool, queue_size=1)
+	
+		moveit_commander.roscpp_initialize(sys.argv)
+		scene = moveit_commander.PlanningSceneInterface() #ns="wx200"
+        	robot = moveit_commander.RobotCommander(robot_description="wx200/robot_description")
+        	group_name = "interbotix_arm"
+        	self.group = moveit_commander.MoveGroupCommander(robot_description="wx200/robot_description",ns =    "wx200",name = group_name)
+		rospy.init_node('decon_arm', anonymous=True, disable_signals=True)
+		self.rate = rospy.Rate(0.5)
+
+        	self.start_pose = group.get_current_pose()
+
+
+		rospy.loginfo("[Decon] Initiating ARM WX200...")
+		rospy.spin()
+
+
+	def arm_cb(self, request):
+		if len(request.data) == 2:
+			if request.data == [0.0,0.0]:
+				move_to_pose(self.start_pose, self.group)
+				self.arm_status_topic.publish(True)
+				return
+			n_up, n_down, n_left, n_right = 0, 0, 0, 0
+			n_front, n_back = 3, 0
+			n_rotate_plus, n_rotate_minus = 0, 0
+			
+			[arm_horizontal_offset, arm_vertical_offset] = request.data
+			if arm_vertical_offset > 0:
+				#0.05m per vertical movement and resticting to a maximum of 0.2m)
+				n_up = int(min(0.2, arm_vertical_offset) / 0.05)
+			else:
+				n_down = int(min(0.2, -1*arm_vertical_offset) / 0.05) 
+			if arm_horizontal_offset > 0:
+				#0.02m per horizontal movement and restricting to a maximum of 0.1m)
+				n_left = int(min(0.1, arm_horizontal_offset) / 0.02)
+			else:
+				n_right = int(min(0.1, -1*arm_horizontal_offset) / 0.02)
+			
+			for _ in range(n_up):
+				move_up(self.group)
+				self.rate.sleep()
+			for _ in range(n_down):
+				move_down(self.group)
+				self.rate.sleep()
+			for _ in range(n_left):
+				move_left(self.group):
+				self.rate.sleep()
+			for _ in range(n_right):
+				move_right(self.group)
+				self.rate.sleep()
+			for _ in range(n_front):
+				move_front(self.group)
+				self.rate.sleep()
+			for _ in range(n_back):
+				move_back(self.group)
+				self.rate.sleep()
+			for _ in range(n_rotate_plus):
+				self.rotate_plus(self.group)
+				self.rate.sleep()
+			for _ in range(n_rotate_minus):
+				self.rotate_minus(self.group)
+				self.rate.sleep()
+
+			self.arm_status_topic.publish(True)
+		else:
+			self.arm_status_topic.publish(False)
+
+if __name__ == '__main__':
+	try:
+		dcontroller = DeconARM()
+	except rospy.ROSInterruptException:
+		log_string = "[Decon] Decon Arm exiting at %s!" % rospy.get_time()	
+		rospy.loginfo(log_string)
