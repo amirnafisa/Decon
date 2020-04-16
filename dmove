@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+# license removed for brevity
+__author__ = 'joshua'
+import rospy
+from std_msgs.msg import String, Bool, Float32MultiArray
+import math
+
+import actionlib
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from actionlib_msgs.msg import GoalStatus
+from geometry_msgs.msg import Pose, Point, Quaternion
+from tf.transformations import quaternion_from_euler, euler_from_quaternion, rotation_matrix
+from nav_msgs.msg import Odometry
+
+class DeconNavigator:
+	def __init__(self):
+		rospy.init_node('decon_move')
+		print("1")
+		self.client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
+		print("2")
+		self.client.wait_for_server()
+		print("3")
+		self.move_rel_command_topic = rospy.Subscriber('move_rel_msg', Float32MultiArray, self.move_rel_callback)	
+		self.move_rel_status_topic = rospy.Publisher('move_rel_status_msg', Bool, queue_size=1)
+		self.move_abs_command_topic = rospy.Subscriber('move_abs_msg', Float32MultiArray, self.move_abs_callback)	
+		self.move_abs_status_topic = rospy.Publisher('move_abs_status_msg', Bool, queue_size=1)
+		print("4")
+
+		self.get_pose = rospy.Subscriber('/odom', Odometry, self.get_pose_callback)
+
+		self.rel_command_flag = False
+		self.abs_command_flag = False
+		self.rel_position = []
+		self.abs_position = []
+		self.pose_goal = []
+		rospy.loginfo("[Decon] Initiating Move...")
+		print("5")
+		rospy.spin()
+		print("6")
+
+	def set_pose_goal (x, y, z, w):
+			pose = Pose()
+			pose.position.x = x
+	        pose.position.y = y
+	        pose.position.z = z
+	        pose.orientation.w = w
+	        self.pose_goal = pose
+
+	def move_rel_callback(self, response):
+		rospy.loginfo("[Decon] Move request received relative to current position...")
+		self.rel_command_flag = True
+		self.rel_position = response.data
+		self.move_rel_status_topic.publish(True)
+
+		if len(self.rel_position) == 3:
+                	euler_angle = euler_from_quaternion(self.current_pose)				# not sure if this is the correct way of converting from quaternion to euler...
+        			angle = np.transpose(rotation_matrix(euler_angle[2], [0,0,1]))       # the angle is a yaw (not sure if this is correct ^ continuation of conversion)
+        			rel_x = self.rel_position[0] * math.cos(angle) + self.rel_position[1] * math.cos(90 - angle)
+        			rel_y = self.rel_position[0] * math.sin(angle) + self.rel_position[1] * math.sin(90 - angle)
+        			abs_x = self.current_pose[0] + rel_x
+        			abs_y = self.current_pose[1] + rel_y
+        			self.set_pose_goal(abs_x, abs_y, 0, self.current_pose[3])
+        			self.movebase_client(self.pose_goal)
+                	#self.move_rel_status_topic.publish(True) # how do we distinguish between abs and rel in done_cb
+                else:
+                	self.move_rel_status_topic.publish(False)
+
+	def move_abs_callback(self, response):
+		rospy.loginfo("[Decon] Request for move to absolution location received...")
+		self.abs_command_flag = True
+		self.abs_position = response.data
+		if len(self.abs_position) == 4:
+			angle = Quaternion(*(quaternion_from_euler(0, 0, self.abs_position[3]*math.pi/180, axes='sxyz')))
+			self.set_pose_goal(self.abs_position[0], self.abs_position[1], 0, angle)
+			self.movebase_client(self.pose_goal)
+		else:
+			self.move_abs_status_topic.publish(False)
+
+
+	def active_cb(self):
+		rospy.loginfo("Goal pose is now being processed by the Action Server...")
+ 
+	def feedback_cb(self, feedback):
+		rospy.loginfo("Feedback for goal pose received")
+
+	def done_cb(self, status, result):
+		if status == 2:
+			rospy.loginfo("Goal pose received a cancel request after it started executing, completed execution!")
+			self.move_abs_status_topic.publish(False)
+		elif status == 3:
+			rospy.loginfo("Goal pose reached")
+			self.move_abs_status_topic.publish(True)
+		elif status == 4:
+			rospy.loginfo("Goal pose was aborted by the Action Server")
+			rospy.signal_shutdown("Goal pose aborted, shutting down!")
+			self.move_abs_status_topic.publish(False)                        
+		elif status == 5:
+			rospy.loginfo("Goal pose has been rejected by the Action Server")
+			rospy.signal_shutdown("Goal pose rejected, shutting down!")
+			self.move_abs_status_topic.publish(False)
+		elif status == 8:
+			rospy.loginfo("Goal pose received a cancel request before it started executing, successfully cancelled!")	
+			self.move_abs_status_topic.publish(False)
+
+	def movebase_client(self, pose_goal):
+		goal = MoveBaseGoal()
+		goal.target_pose.header.frame_id = "map"
+		goal.target_pose.header.stamp = rospy.Time.now()
+		goal.target_pose.pose = pose_goal
+		rospy.loginfo("Sending goal pose to Action Server")
+		rospy.loginfo(str(pose_goal))
+		self.client.send_goal(goal, self.done_cb, self.active_cb, self.feedback_cb)
+
+if __name__ == '__main__':
+	try:
+		dnav = DeconNavigator()
+	except rospy.ROSInterruptException:
+		log_string = "[Decon] Decon Navigator exiting at %s!" % rospy.get_time()	
+		rospy.loginfo(log_string)
+
