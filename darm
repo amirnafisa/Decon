@@ -10,6 +10,7 @@ from std_msgs.msg import String, Bool, Float32MultiArray
 
 
 def rotate_z_plus(group):
+	rospy.loginfo("[Decon] Rotating z plus...")
 	waypoints = []
         scale = 0.1
         wpose = group.get_current_pose().pose
@@ -24,6 +25,7 @@ def rotate_z_plus(group):
 
 
 def rotate_z_minus(group):
+	rospy.loginfo("[Decon] Rotating z minus...")
 	waypoints = []
 	scale = 0.1
 	wpose = group.get_current_pose().pose
@@ -40,6 +42,7 @@ def rotate_z_minus(group):
 
 
 def move_up(group):
+	rospy.loginfo("[Decon] Moving up...")
 	waypoints = []
         scale = 0.1
         wpose = group.get_current_pose().pose
@@ -54,6 +57,7 @@ def move_up(group):
 
 
 def move_down(group):
+	rospy.loginfo("[Decon] Moving down...")
 	waypoints = []
 	scale = 0.1
 	wpose = group.get_current_pose().pose
@@ -68,6 +72,7 @@ def move_down(group):
         group.clear_pose_targets()
 
 def move_back(group):
+	rospy.loginfo("[Decon] Moving back...")
 
         waypoints = []
         scale = 0.1
@@ -83,6 +88,7 @@ def move_back(group):
         group.clear_pose_targets()
 
 def move_front(group):
+	rospy.loginfo("[Decon] Moving front...")
 
         waypoints = []
         scale = 0.1
@@ -99,6 +105,7 @@ def move_front(group):
 
 
 def move_left(group):
+	rospy.loginfo("[Decon] Moving left...")
 
         waypoints = []
         scale = 0.1
@@ -114,7 +121,7 @@ def move_left(group):
         group.clear_pose_targets()
 
 def move_right(group):
-
+	rospy.loginfo("[Decon] Moving right...")
         waypoints = []
         scale = 0.1
         wpose = group.get_current_pose().pose
@@ -131,6 +138,7 @@ def move_right(group):
 
 
 def move_to_pose(pose, group):
+	rospy.loginfo("[Decon] Moving to position given...")
 	
 	waypoints = []
         waypoints.append(copy.deepcopy(pose.pose))
@@ -143,7 +151,7 @@ def move_to_pose(pose, group):
         group.clear_pose_targets()
 
 
-class DeconArm():
+class DeconARM():
 	def __init__(self):
 		self.arm_topic = rospy.Subscriber('arm_msg', Float32MultiArray, self.arm_cb)	
 		self.arm_status_topic = rospy.Publisher('arm_status_msg', Bool, queue_size=1)
@@ -154,9 +162,9 @@ class DeconArm():
         	group_name = "interbotix_arm"
         	self.group = moveit_commander.MoveGroupCommander(robot_description="wx200/robot_description",ns =    "wx200",name = group_name)
 		rospy.init_node('decon_arm', anonymous=True, disable_signals=True)
-		self.rate = rospy.Rate(0.5)
+		self.rate = rospy.Rate(1)
 
-        	self.start_pose = group.get_current_pose()
+        	self.start_pose = self.group.get_current_pose()
 
 
 		rospy.loginfo("[Decon] Initiating ARM WX200...")
@@ -164,8 +172,10 @@ class DeconArm():
 
 
 	def arm_cb(self, request):
+		rospy.loginfo("[Decon] Request to move arm recieved...")
 		if len(request.data) == 2:
-			if request.data == [0.0,0.0]:
+			print(request.data)
+			if request.data == (0.0,0.0):
 				move_to_pose(self.start_pose, self.group)
 				self.arm_status_topic.publish(True)
 				return
@@ -176,9 +186,9 @@ class DeconArm():
 			[arm_horizontal_offset, arm_vertical_offset] = request.data
 			if arm_vertical_offset > 0:
 				#0.05m per vertical movement and resticting to a maximum of 0.2m)
-				n_up = int(min(0.2, arm_vertical_offset) / 0.05)
+				n_down = int(min(0.2, arm_vertical_offset) / 0.05)
 			else:
-				n_down = int(min(0.2, -1*arm_vertical_offset) / 0.05) 
+				n_up = int(min(0.2, -1*arm_vertical_offset) / 0.05) 
 			if arm_horizontal_offset > 0:
 				#0.02m per horizontal movement and restricting to a maximum of 0.1m)
 				n_left = int(min(0.1, arm_horizontal_offset) / 0.02)
@@ -192,7 +202,7 @@ class DeconArm():
 				move_down(self.group)
 				self.rate.sleep()
 			for _ in range(n_left):
-				move_left(self.group):
+				move_left(self.group)
 				self.rate.sleep()
 			for _ in range(n_right):
 				move_right(self.group)
@@ -201,6 +211,7 @@ class DeconArm():
 				move_front(self.group)
 				self.rate.sleep()
 			for _ in range(n_back):
+	
 				move_back(self.group)
 				self.rate.sleep()
 			for _ in range(n_rotate_plus):
@@ -220,3 +231,4 @@ if __name__ == '__main__':
 	except rospy.ROSInterruptException:
 		log_string = "[Decon] Decon Arm exiting at %s!" % rospy.get_time()	
 		rospy.loginfo(log_string)
+
