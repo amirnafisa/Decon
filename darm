@@ -32,7 +32,7 @@ class DeconARM():
         	self.group = moveit_commander.MoveGroupCommander(robot_description="wx200/robot_description",ns =    "wx200",name = group_name)
 
 		rospy.init_node('decon_arm', anonymous=True, disable_signals=True)
-		self.rate = rospy.Rate(0.1)
+		self.rate = rospy.Rate(0.3)
 		
 		#Attach cone as colliding object to avoid the need to restart the ARM
 		self.attach_object()
@@ -44,6 +44,15 @@ class DeconARM():
 
 		#Save the starting pose to return to  
 		self.start_pose = self.group.get_current_pose()
+		self.start_pose.pose.position.x = 0
+		self.start_pose.pose.position.y = 0
+		self.start_pose.pose.position.z = 0.36
+		
+		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(0))
+		self.start_pose.pose.orientation.x = quat[0] #0.1108
+		self.start_pose.pose.orientation.y = quat[1] #-0.1159
+		self.start_pose.pose.orientation.z = quat[2] #0.037
+		self.start_pose.pose.orientation.w = quat[3] #0.986
 
 		rospy.loginfo("[Decon] Initiating ARM WX200...")
 		rospy.spin()
@@ -61,14 +70,14 @@ class DeconARM():
 
 	def set_orientation_constraints(self):
 		oc = OrientationConstraint()
-		oc.header.frame_id = 'base_link'
+		oc.header.frame_id = '/wx200/world'
 		oc.link_name = 'ee_arm_link'
-		oc.orientation.w = 0.5
-		#quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(90))
-		#oc.orientation.x = quat[0]
-		#oc.orientation.y = quat[1]
-		#oc.orientation.z = quat[2]
-		#oc.orientation.w = quat[3]
+		#oc.orientation.w = 0.5
+		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(90))
+		oc.orientation.x = quat[0]
+		oc.orientation.y = quat[1]
+		oc.orientation.z = quat[2]
+		oc.orientation.w = quat[3]
 		self.constraints.orientation_constraints.append(oc)
 
 	def arm_cb(self, request):
