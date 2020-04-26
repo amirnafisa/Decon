@@ -36,8 +36,16 @@ class DeconController:
 		rospy.init_node('decon_controller', anonymous=True, disable_signals=True)
 
 		self.response_signal = [None, None, None, None, None]
+		self.disinfection_completed = False
 		
 		self.rate = rospy.Rate(1) #Repeat detect and disinfect every 1 second
+
+		#Position ARM to its home state
+		self.move_arm([0.0, 0.0])
+		if self.wait_for(ARM_FLAG) is True:
+			return
+		else:
+			rospy.signal_shutdown("[Decon] Could not position ARM... Shutting Down!")
 
 	def detect(self):
 		rospy.loginfo("[Decon] Starting detection process...")
@@ -52,7 +60,7 @@ class DeconController:
 
 		request = Float32MultiArray()
 		request.data = next_location
-		#self.move2next_location_command_topic.publish(request)
+		self.move2next_location_command_topic.publish(request)
 		self.next_location_idx += 1
 
 	def move_closer(self):
@@ -132,7 +140,7 @@ class DeconController:
 				sys.stdout.flush()
 				time.sleep(1)
 
-				if timer >= 60:
+				if timer >= 120:
 					sys.stdout.write("\rTimer is Over! No response obtained. Releasing unit...")
 					break
 		except KeyboardInterrupt:
@@ -184,10 +192,20 @@ class DeconController:
 						
 						#If the object is door handle or light switch
 						#Cross section of disinfecting cone is 0.25X0.25, hence the number 0.2
-						if label > 1 and obj_width < 0.2 and obj_height < 0.2:
+						print("w,h,d,s,k: ",w,h,d,s,k)
+						print("label: ",label)
+						print("obj_x_center: ", obj_x_center)
+						print("obj_y_center: ", obj_y_center)
+						print("obj_width: ", obj_width)
+						print("obj_height: ", obj_height)
+						if label > 1 and obj_width < 0.2 and obj_height < 0.2 and abs(obj_x_center - (w*s/2)) < 0.2:
 							obj_horizontal_offset_from_arm_ee = obj_x_center - (w*s/2)
 							#Arm End Effector From Camera distance in sleep position is 0.36m
-							obj_vertical_offset_from_arm_ee =  obj_y_center - (h*k/2) - 0.36 
+							obj_vertical_offset_from_arm_ee =  (h*k/2) - 0.30 - obj_y_center
+							print("obj_horizontal_offset: ", obj_horizontal_offset_from_arm_ee)
+							print("obj_vertical_offset: ",obj_vertical_offset_from_arm_ee)
+						
+							
 							self.arm_offset4objects2disinfect.append([obj_horizontal_offset_from_arm_ee, obj_vertical_offset_from_arm_ee])
 						elif label == 1:
 							self.activate_emergency_switch()
@@ -208,12 +226,15 @@ class DeconController:
 					self.state = "MOVE_ARM"
 					
 			elif self.state == "MOVE_ARM":
+				print("In state move_arm, self.arm_offset4objects2disinfect: ", self.arm_offset4objects2disinfect)
 				if len(self.arm_offset4objects2disinfect) > 0:
+					self.disinfection_completed = False
 					#Move arm to home position
 					self.move_arm([0.0,0.0]) 
 					ret = self.wait_for(ARM_FLAG)
 					ret2 = False
 					if ret is True:
+						ret = False
 						#Move arm to position close to the object
 						self.move_arm(self.arm_offset4objects2disinfect[0])
 						ret2 = self.wait_for(ARM_FLAG)
@@ -223,11 +244,19 @@ class DeconController:
 						self.state = "DISINFECT"
 					self.arm_offset4objects2disinfect = self.arm_offset4objects2disinfect[1:]
 				else:
-					self.state = "MOVE2NEXT"
+					self.move_arm([0.0, 0.0])
+					ret = self.wait_for(ARM_FLAG)
+					if ret is True:
+						ret = False
+						self.state = "MOVE2NEXT"
+					else:
+						rospy.loginfo("[Decon] Could not get ARM to reposition to home position. Manual reset of the arm needed...")
+						rospy.signal_shutdown("[Decon] ARM Error... Shutting Down!")
 
 			elif self.state == "DISINFECT":
 				self.disinfect()
 				self.state = "MOVE_ARM"				
+				self.disinfection_completed = True
 			
 			elif self.state == "MOVE2NEXT":
 				if self.move2next_location() is False:
@@ -248,7 +277,7 @@ class DeconController:
 				
 if __name__ == '__main__':
 	try:
-		dcontroller = DeconController([[-0.7,0.0,0.0,90]])
+		dcontroller = DeconController([[0.4,-1.06,0,0], [0.4,-0.532,0], [0.5,-1.5,0,-90]])
 		dcontroller.start()
 	except rospy.ROSInterruptException:
 		log_string = "[Decon] Decon Controller exiting at %s!" % rospy.get_time()	
