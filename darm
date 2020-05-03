@@ -32,51 +32,43 @@ class DeconARM():
         	self.group = moveit_commander.MoveGroupCommander(robot_description="wx200/robot_description",ns =    "wx200",name = group_name)
 
 		rospy.init_node('decon_arm', anonymous=True, disable_signals=True)
-		self.rate = rospy.Rate(0.3)
+		self.rate = rospy.Rate(1)
 		
-		#Attach cone as colliding object to avoid the need to restart the ARM
-		self.attach_object()
-		
-		#Constraint to keep orientaion aligned with turtlebot
-		self.constraints = Constraints()	
-		self.set_orientation_constraints()
-		self.group.set_path_constraints(self.constraints)
-
 		#Save the starting pose to return to  
 		self.start_pose = self.group.get_current_pose()
 		self.start_pose.pose.position.x = 0.1
 		self.start_pose.pose.position.y = 0.0
 		self.start_pose.pose.position.z = 0.46
-		self.start_pose.pose.orientation.x = 0
-		self.start_pose.pose.orientation.y = 0
-		self.start_pose.pose.orientation.z = 0
-		self.start_pose.pose.orientation.w = 1
-		move_to_pose(self.group, self.rate, [self.start_pose.pose])
+		
+		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(-28), math.radians(0))
+		self.start_pose.pose.orientation.x = quat[0]
+		self.start_pose.pose.orientation.y = quat[1]
+		self.start_pose.pose.orientation.z = quat[2]
+		self.start_pose.pose.orientation.w = quat[3]
 
+		move_to_pose(self.group, [self.start_pose.pose])
+
+		#Constraint to keep orientaion aligned with turtlebot
+		self.constraints = Constraints()	
+		self.set_orientation_constraints()
+		self.group.set_path_constraints(self.constraints)
+	
 		rospy.loginfo("[Decon] Initiating ARM WX200...")
 		rospy.spin()
-
-	def attach_object(self):
-		box_pose = geometry_msgs.msg.PoseStamped()
-		eef_link = self.group.get_end_effector_link()
-		box_pose.header.frame_id = eef_link
-		box_pose.pose.orientation.w = 1.0
-		box_name = 'cone'
-		self.scene.add_box(box_name, box_pose, size=(0.25,0.25,0.25))
-		grasping_group = 'interbotix_arm'
-		touch_links = [eef_link] 
-		self.scene.attach_box(eef_link, name=box_name, touch_links=touch_links) 
 
 	def set_orientation_constraints(self):
 		oc = OrientationConstraint()
 		oc.header.frame_id = 'world'
 		oc.link_name = 'ee_arm_link'
-		#oc.orientation.w = 0.5
-		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(90))
+		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(-28), math.radians(0))
 		oc.orientation.x = quat[0]
 		oc.orientation.y = quat[1]
 		oc.orientation.z = quat[2]
 		oc.orientation.w = quat[3]
+		oc.absolute_x_axis_tolerance = 0.5
+		oc.absolute_y_axis_tolerance = 0.1
+		oc.absolute_z_axis_tolerance = 0.5
+		oc.weight = 1.0
 		self.constraints.orientation_constraints.append(oc)
 
 	def arm_cb(self, request):
@@ -86,13 +78,13 @@ class DeconARM():
 			return
 
 		if request.data == (0.0,0.0):
-			move_to_pose(self.group, self.rate, [self.start_pose.pose])
+			move_to_pose(self.group, [self.start_pose.pose])
 			self.arm_status_topic.publish(True)
 			return
 			
 		
 		[arm_y_offset, arm_z_offset] = request.data	
-		move(self.group, self.rate, 0.16, 0, arm_z_offset)	
+		move(self.group, 0.16, 0, arm_z_offset)	
 		self.arm_status_topic.publish(True)
 		return
 		
