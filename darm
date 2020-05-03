@@ -44,15 +44,14 @@ class DeconARM():
 
 		#Save the starting pose to return to  
 		self.start_pose = self.group.get_current_pose()
-		self.start_pose.pose.position.x = 0
-		self.start_pose.pose.position.y = 0
-		self.start_pose.pose.position.z = 0.36
-		
-		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(0))
-		self.start_pose.pose.orientation.x = quat[0] #0.1108
-		self.start_pose.pose.orientation.y = quat[1] #-0.1159
-		self.start_pose.pose.orientation.z = quat[2] #0.037
-		self.start_pose.pose.orientation.w = quat[3] #0.986
+		self.start_pose.pose.position.x = 0.1
+		self.start_pose.pose.position.y = 0.0
+		self.start_pose.pose.position.z = 0.46
+		self.start_pose.pose.orientation.x = 0
+		self.start_pose.pose.orientation.y = 0
+		self.start_pose.pose.orientation.z = 0
+		self.start_pose.pose.orientation.w = 1
+		move_to_pose(self.group, self.rate, [self.start_pose.pose])
 
 		rospy.loginfo("[Decon] Initiating ARM WX200...")
 		rospy.spin()
@@ -70,7 +69,7 @@ class DeconARM():
 
 	def set_orientation_constraints(self):
 		oc = OrientationConstraint()
-		oc.header.frame_id = '/wx200/world'
+		oc.header.frame_id = 'world'
 		oc.link_name = 'ee_arm_link'
 		#oc.orientation.w = 0.5
 		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(90))
@@ -93,7 +92,7 @@ class DeconARM():
 			
 		
 		[arm_y_offset, arm_z_offset] = request.data	
-		move(self.group, self.rate, 0.36, arm_y_offset, arm_z_offset)	
+		move(self.group, self.rate, 0.16, 0, arm_z_offset)	
 		self.arm_status_topic.publish(True)
 		return
 		
