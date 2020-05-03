@@ -1,8 +1,8 @@
 
 import rospy
-
-scale = 0.1
-min_z = 0.1
+import copy
+scale = 0.05
+min_z = 0.3
 max_z = 1.0
 min_x = -0.1
 max_x = 0.5
@@ -30,97 +30,99 @@ def check_bounds(pose):
 		return False
 	return True
 
-def move_to_pose(group, rate, waypoints):
+def move_to_pose(group, waypoints):
 	(plan, fraction) = group.compute_cartesian_path(waypoints, 0.01, 0.0)
         group.execute(plan, wait=True)
 	group.stop()
 	group.clear_pose_targets()
-	rate.sleep()
+	rospy.sleep(2)
 
-def inc_z(group, rate):
+def inc_z(group, offset):
 	rospy.loginfo("[Decon] Increase ARM's z...")
+	waypoints = []
 	wpose = group.get_current_pose().pose
-        wpose.position.z += scale
-	wpose.orientation.w = 1
-	if not check_bounds(wpose):
-		return
-	move_to_pose(group, rate, [wpose])
-        rate.sleep()
+	while offset >= scale:
+		wpose.position.z += scale
+		if not check_bounds(wpose):
+			break
+		waypoints.append(copy.deepcopy(wpose))
+		offset -= scale
+	if len(waypoints) > 0: 
+		move_to_pose(group, waypoints)
 
-def dec_z(group, rate):
+def dec_z(group, offset):
 	rospy.loginfo("[Decon] Decrease ARM's z...")
+	waypoints = []
 	wpose = group.get_current_pose().pose
-	wpose.position.z -= scale
-	wpose.orientation.w = 1
-	if not check_bounds(wpose):
-		return
-	move_to_pose(group, rate, [wpose])
-	rate.sleep()
+	while offset >= scale:
+		wpose.position.z -= scale
+		if not check_bounds(wpose):
+			break
+		waypoints.append(copy.deepcopy(wpose))
+		offset -= scale
+	if len(waypoints) > 0: 
+		move_to_pose(group, waypoints)
 
-def inc_x(group, rate):
+def inc_x(group, offset):
 	rospy.loginfo("[Decon] Increase ARM's x...")
-        wpose = group.get_current_pose().pose
-        wpose.position.x += scale
-	wpose.position.z += 0.015
- 	wpose.orientation.w = 1
-	if not check_bounds(wpose):
-		return
-        move_to_pose(group, rate, [wpose])
-	rate.sleep()
+ 	waypoints = []
+	wpose = group.get_current_pose().pose
+	while offset >= scale:
+		wpose.position.x += scale
+		wpose.position.z += 0.015
+		if not check_bounds(wpose):
+			break
+		waypoints.append(copy.deepcopy(wpose))
+		offset -= scale
+	if len(waypoints) > 0: 
+		move_to_pose(group, waypoints)
 
-def dec_x(group, rate):
+def dec_x(group, offset):
 	rospy.loginfo("[Decon] Decrease ARM's x...")
-        wpose = group.get_current_pose().pose
-        wpose.position.x -= scale
-	wpose.position.z += 0.007
-        wpose.orientation.w = 1
-	if not check_bounds(wpose):
-		return
-        move_to_pose(group, rate, [wpose])
-	rate.sleep()
+  	waypoints = []
+	wpose = group.get_current_pose().pose
+	while offset >= scale:
+		wpose.position.x -= scale
+		wpose.position.z += 0.007
+		if not check_bounds(wpose):
+			break
+		waypoints.append(copy.deepcopy(wpose))
+		offset -= scale
+	if len(waypoints) > 0: 
+		move_to_pose(group, waypoints)
 
-def inc_y(group, rate):
+def inc_y(group, offset):
 	rospy.loginfo("[Decon] Increase ARM's y...")
-        wpose = group.get_current_pose().pose
-        wpose.position.y += scale
-        wpose.orientation.w = 1
-	if not check_bounds(wpose):
-		return
-        move_to_pose(group, rate, [wpose])
-	rate.sleep()
+  	waypoints = []
+	wpose = group.get_current_pose().pose
+	while offset >= scale:
+		wpose.position.y += scale
+		if not check_bounds(wpose):
+			break
+		waypoints.append(copy.deepcopy(wpose))
+		offset -= scale
+	if len(waypoints) > 0: 
+		move_to_pose(group, waypoints)
 
-def dec_y(group, rate):
+def dec_y(group, offset):
 	rospy.loginfo("[Decon] Decrease ARM's y...")
-        wpose = group.get_current_pose().pose
-        wpose.position.y -= scale
-        wpose.orientation.w = 1
-	if not check_bounds(wpose):
-		return
-        move_to_pose(group, rate, [wpose])
-	rate.sleep()
+  	waypoints = []
+	wpose = group.get_current_pose().pose
+	while offset >= scale:
+		wpose.position.y -= scale
+		if not check_bounds(wpose):
+			break
+		waypoints.append(copy.deepcopy(wpose))
+		offset -= scale
+	if len(waypoints) > 0: 
+		move_to_pose(group, waypoints)
 
-def move(group, rate, x_offset, y_offset, z_offset):
+def move(group, x_offset, y_offset, z_offset):
 	
 	#Z offset
-	while z_offset >= scale:
-		inc_z(group, rate)
-		z_offset -= scale
-	while z_offset*-1 >= scale:
-		dec_z(group, rate)
-		z_offset += scale
+	inc_z(group, z_offset) if z_offset > 0 else dec_z(group, abs(z_offset))
 	#X offset
-	while x_offset >= scale:
-		inc_x(group, rate)
-		x_offset -= scale
-	while x_offset*-1 >= scale:
-		dec_x(group, rate)
-		x_offset += scale
+	inc_x(group, x_offset) if x_offset > 0 else dec_x(group, abs(x_offset))
 	#Y offset
-	while y_offset >= scale:
-		inc_y(group, rate)
-		y_offset -= scale
-	while y_offset*-1 >= scale:
-		dec_y(group, rate)
-		y_offset += scale
-
+	inc_y(group, y_offset) if y_offset > 0 else dec_y(group, abs(y_offset))
 	
