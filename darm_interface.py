@@ -1,3 +1,4 @@
+
 import rospy
 
 scale = 0.1
@@ -60,6 +61,7 @@ def inc_x(group, rate):
 	rospy.loginfo("[Decon] Increase ARM's x...")
         wpose = group.get_current_pose().pose
         wpose.position.x += scale
+	wpose.position.z += 0.015
  	wpose.orientation.w = 1
 	if not check_bounds(wpose):
 		return
@@ -70,6 +72,7 @@ def dec_x(group, rate):
 	rospy.loginfo("[Decon] Decrease ARM's x...")
         wpose = group.get_current_pose().pose
         wpose.position.x -= scale
+	wpose.position.z += 0.007
         wpose.orientation.w = 1
 	if not check_bounds(wpose):
 		return
