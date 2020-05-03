@@ -31,23 +31,26 @@ class DeconArmTest:
         	self.rate = rospy.Rate(1) # 1hz
 		
 		#Attach cone as colliding object to avoid the need to restart the ARM
-		self.attach_object()
+		#self.attach_object()
 		
-		#Constraint to keep orientaion aligned with turtlebot
-		self.constraints = Constraints()	
-		self.set_orientation_constraints()
-		self.group.set_path_constraints(self.constraints)
-
 		#Save the starting pose to return to  
 		self.start_pose = self.group.get_current_pose()
 		self.start_pose.pose.position.x = 0.1
 		self.start_pose.pose.position.y = 0.0
 		self.start_pose.pose.position.z = 0.46
-		self.start_pose.pose.orientation.x = 0
-		self.start_pose.pose.orientation.y = 0
-		self.start_pose.pose.orientation.z = 0
-		self.start_pose.pose.orientation.w = 1
-		move_to_pose(self.group, self.rate, [self.start_pose.pose])
+		
+		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(-28), math.radians(0))
+		self.start_pose.pose.orientation.x = quat[0]
+		self.start_pose.pose.orientation.y = quat[1]
+		self.start_pose.pose.orientation.z = quat[2]
+		self.start_pose.pose.orientation.w = quat[3]
+
+		move_to_pose(self.group, [self.start_pose.pose])
+
+		#Constraint to keep orientaion aligned with turtlebot
+		self.constraints = Constraints()	
+		self.set_orientation_constraints()
+		self.group.set_path_constraints(self.constraints)
 
 		#Print basic moveit, scene, robot info
 		self.print_basic_interface_info()
@@ -98,14 +101,14 @@ class DeconArmTest:
 		oc = OrientationConstraint()
 		oc.header.frame_id = 'world'
 		oc.link_name = 'ee_arm_link'
-		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(0), math.radians(90))
+		quat = tf.transformations.quaternion_from_euler(math.radians(0), math.radians(-28), math.radians(0))
 		oc.orientation.x = quat[0]
 		oc.orientation.y = quat[1]
 		oc.orientation.z = quat[2]
 		oc.orientation.w = quat[3]
-		oc.absolute_x_axis_tolerance = 3.14
+		oc.absolute_x_axis_tolerance = 0.5
 		oc.absolute_y_axis_tolerance = 0.1
-		oc.absolute_z_axis_tolerance = 0.1
+		oc.absolute_z_axis_tolerance = 0.5
 		oc.weight = 1.0
 		self.constraints.orientation_constraints.append(oc)
 		
@@ -113,21 +116,21 @@ class DeconArmTest:
 		while not rospy.is_shutdown():
 			user_input = raw_input("Press 1 to increase x, 2 to decrease x, 3 to increase y, 4 to decrease y, 5 to increase z, 6 to decrease z, h to go to start position, e to exit: ")
  			if user_input == '1':
-				inc_x(self.group, self.rate)
+				inc_x(self.group, 0.1)
 			elif user_input == '2':
-				dec_x(self.group, self.rate)
+				dec_x(self.group, 0.1)
 			elif user_input == '3':
-				inc_y(self.group, self.rate)
+				inc_y(self.group, 0.1)
 			elif user_input == '4':
-				dec_y(self.group, self.rate)
+				dec_y(self.group, 0.1)
 			elif user_input == '5':
-				inc_z(self.group, self.rate)
+				inc_z(self.group, 0.1)
 			elif user_input == '6':
-				dec_z(self.group, self.rate)
+				dec_z(self.group, 0.1)
 			elif user_input == 'h':
-				move_to_pose(self.group, self.rate, [self.start_pose.pose])
+				move_to_pose(self.group, [self.start_pose.pose])
 			elif user_input == 'e':
-				move_to_pose(self.group, self.rate, [self.start_pose.pose])
+				move_to_pose(self.group, [self.start_pose.pose])
 				rospy.signal_shutdown("Exit Command Received...Good Bye!")
 			else:
 				print("Incorrect input")
