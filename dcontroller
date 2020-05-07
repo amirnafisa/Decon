@@ -40,13 +40,6 @@ class DeconController:
 		
 		self.rate = rospy.Rate(1) #Repeat detect and disinfect every 1 second
 
-		#Position ARM to its home state
-		self.move_arm([0.0, 0.0])
-		if self.wait_for(ARM_FLAG) is True:
-			return
-		else:
-			rospy.signal_shutdown("[Decon] Could not position ARM... Shutting Down!")
-
 	def detect(self):
 		rospy.loginfo("[Decon] Starting detection process...")
 		self.detection_command_topic.publish(True)
@@ -114,7 +107,7 @@ class DeconController:
 
 	def disinfect(self):
 		self.turn_led_on()
-		self.timer_for(5)
+		self.timer_for(30)
 		self.turn_led_off()
 		self.activating_pump()
 		self.timer_for(5)
@@ -198,22 +191,22 @@ class DeconController:
 						print("obj_y_center: ", obj_y_center)
 						print("obj_width: ", obj_width)
 						print("obj_height: ", obj_height)
-						if label > 1 and obj_width < 0.2 and obj_height < 0.2 and abs(obj_x_center - (w*s/2)) < 0.2:
+						if label > 1 and obj_width < 0.2 and obj_height < 0.2 and abs(obj_x_center - (w*s/2)) < 0.4:
 							obj_horizontal_offset_from_arm_ee = obj_x_center - (w*s/2)
-							#Arm End Effector From Camera distance in sleep position is 0.36m
-							obj_vertical_offset_from_arm_ee =  (h*k/2) - 0.30 - obj_y_center
+							#Arm End Effector From Camera distance in sleep position is 0.26m
+							obj_vertical_offset_from_arm_ee =  (h*k/2) - 0.42 - obj_y_center
 							print("obj_horizontal_offset: ", obj_horizontal_offset_from_arm_ee)
 							print("obj_vertical_offset: ",obj_vertical_offset_from_arm_ee)
 						
 							
-							self.arm_offset4objects2disinfect.append([obj_horizontal_offset_from_arm_ee, obj_vertical_offset_from_arm_ee])
+							self.arm_offset4objects2disinfect.append([0.25, obj_horizontal_offset_from_arm_ee, obj_vertical_offset_from_arm_ee])
 						elif label == 1:
 							self.activate_emergency_switch()
 							rospy.loginfo("[Decon] Human in proximity. Shutting all systems...")
 							rospy.signal_shutdown("[Decon] Human proximity. Good bye!")
 							
 					self.state = "MOVE_CLOSER"
-					self.move_position = [d-0.45, 0, 0] if d > 0.45 else [0, 0, 0]
+					self.move_position = [d-0.4, 0, 0] if d > 0.4 else [0, 0, 0]
 				else:
 					rospy.loginfo("[Decon] No objects found... Moving to another location...")
 					self.state = "MOVE2NEXT"	
@@ -234,7 +227,6 @@ class DeconController:
 					ret = self.wait_for(ARM_FLAG)
 					ret2 = False
 					if ret is True:
-						ret = False
 						#Move arm to position close to the object
 						self.move_arm(self.arm_offset4objects2disinfect[0])
 						ret2 = self.wait_for(ARM_FLAG)
@@ -242,7 +234,8 @@ class DeconController:
 						rospy.loginfo("\n[Decon] Robot could not position arm. Skipping the object...")
 					else:
 						self.state = "DISINFECT"
-					self.arm_offset4objects2disinfect = self.arm_offset4objects2disinfect[1:]
+					#self.arm_offset4objects2disinfect = self.arm_offset4objects2disinfect[1:]
+					self.arm_offset4objects2disinfect = []
 				else:
 					self.move_arm([0.0, 0.0])
 					ret = self.wait_for(ARM_FLAG)
@@ -274,11 +267,28 @@ class DeconController:
 					
 
 		self.rate.sleep()		
-				
+
+#Home coordinates: [2.7955,-0.41917,0,-24.27]				
 if __name__ == '__main__':
 	try:
-		dcontroller = DeconController([[0.4,-1.06,0,0], [0.4,-0.532,0], [0.5,-1.5,0,-90]])
+		home_coord = [3.2278,-0.94701,0,62]
+		#dcontroller = DeconController([[0.4,-1.06,0,0], [0.4,-0.532,0], [0.5,-1.5,0,-90]])
+		#dcontroller = DeconController([[3.49093,-1.12527,0,-26.5],[2.883,-0.72133,0,65.91]])
+		dcontroller = DeconController([[3.2278,-0.94701,0,62]])
+		#[2.883,-0.72133,0,65.91]])
 		dcontroller.start()
+		dcontroller.move_arm([0.0, 0.0])
+		ret = dcontroller.wait_for(ARM_FLAG)
+		if ret is True:
+			ret = False
+			request = Float32MultiArray()
+			request.data = home_coord 
+			dcontroller.move2next_location_command_topic.publish(request)
+			ret = dcontroller.wait_for(LOCATION_FLAG)
+			if ret is not True:
+				rospy.loginfo("[Decon] Error Occured going back to home position...")
+			rospy.signal_shutdown("[Decon] Good Bye...")
+
 	except rospy.ROSInterruptException:
 		log_string = "[Decon] Decon Controller exiting at %s!" % rospy.get_time()	
 		rospy.loginfo(log_string)
