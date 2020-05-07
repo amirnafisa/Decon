@@ -73,7 +73,7 @@ class DeconARM():
 
 	def arm_cb(self, request):
 		rospy.loginfo("[Decon] Request to move arm recieved...")
-		if len(request.data) != 2:
+		if len(request.data) != 2 and len(request.data) != 3:
 			self.arm_status_topic.publish(False)
 			return
 
@@ -82,9 +82,8 @@ class DeconARM():
 			self.arm_status_topic.publish(True)
 			return
 			
-		
-		[arm_y_offset, arm_z_offset] = request.data	
-		move(self.group, 0.16, 0, arm_z_offset)	
+		[arm_x_offset, arm_y_offset, arm_z_offset] = request.data	
+		move(self.group, arm_x_offset, 0, arm_z_offset)	
 		self.arm_status_topic.publish(True)
 		return
 		

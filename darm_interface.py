@@ -2,7 +2,7 @@
 import rospy
 import copy
 scale = 0.05
-min_z = 0.3
+min_z = 0.1
 max_z = 1.0
 min_x = -0.1
 max_x = 0.5
